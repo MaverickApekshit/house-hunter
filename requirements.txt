@@ -1,0 +1,7 @@
+playwright==1.43.0
+beautifulsoup4==4.12.3
+fastapi==0.111.0
+uvicorn==0.29.0
+googlemaps==4.10.0
+python-dotenv==1.0.1
+requests==2.31.0
