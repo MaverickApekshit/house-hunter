@@ -34,6 +34,10 @@
                     <div class="detail-item">Rent: ₹{{ listing.rent }}</div>
                     <div class="detail-item">BHK: {{ listing.bhk }}</div>
                     <div class="detail-item">Locality: {{ listing.locality }}</div>
+                    {% if listing.commute_time_mins %}
+                    <div class="detail-item" style="background: #f1c40f; color: #333;">Commute: {{ listing.commute_time_mins }} mins</div>
+                    {% endif %}
+                    <div class="detail-item">Deposit: ₹{{ listing.deposit }}</div>
                     <div class="detail-item">Status: {{ listing.status }}</div>
                 </div>
                 <div class="actions">

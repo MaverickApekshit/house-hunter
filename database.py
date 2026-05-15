@@ -64,7 +64,7 @@ def get_unprocessed_commutes():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM listings WHERE commute_time_mins IS NULL AND latitude IS NOT NULL AND longitude IS NOT NULL')
+    cursor.execute('SELECT * FROM listings WHERE commute_time_mins IS NULL')
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]

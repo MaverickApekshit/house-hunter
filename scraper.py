@@ -1,5 +1,6 @@
 import asyncio
 from playwright.async_api import async_playwright
+from bs4 import BeautifulSoup
 import database
 import re
 import os
@@ -24,41 +25,51 @@ async def scrape_nobroker(url):
         
         for article in articles:
             try:
+                html = await article.inner_html()
+                soup = BeautifulSoup(html, 'html.parser')
+                
                 # Title
-                title_el = await article.query_selector('.heading-6')
-                title = await title_el.inner_text() if title_el else "Unknown"
+                title_el = soup.select_one('.heading-6')
+                title = title_el.text.strip() if title_el else "Unknown"
                 
                 # URL and External ID
-                link_el = await article.query_selector('a.overflow-hidden')
-                href = await link_el.get_attribute('href') if link_el else ""
+                link_el = soup.select_one('a.overflow-hidden')
+                href = link_el['href'] if link_el and link_el.has_attr('href') else ""
                 full_url = "https://www.nobroker.in" + href if href else ""
                 
                 match = re.search(r'/([a-f0-9]{32})/', full_url)
                 if not match:
-                    match = re.search(r'/([a-f0-9]{10,40})/', full_url) # fallback for varying lengths
+                    match = re.search(r'/([a-f0-9]{10,40})/', full_url)
                 
                 external_id = match.group(1) if match else "unknown"
                 
                 # Rent
-                rent_el = await article.query_selector('#roomRent')
-                rent_text = await rent_el.inner_text() if rent_el else ""
-                digits = ''.join(filter(str.isdigit, rent_text))
-                rent = int(digits) if digits else 0
+                rent = 0
+                price_meta = soup.select_one('meta[itemprop="price"]')
+                if price_meta and price_meta.has_attr('content'):
+                    rent_digits = ''.join(filter(str.isdigit, price_meta['content']))
+                    rent = int(rent_digits) if rent_digits else 0
                 
                 # Deposit
-                deposit_el = await article.query_selector('#roomDeposit')
-                deposit_text = await deposit_el.inner_text() if deposit_el else ""
-                dep_digits = ''.join(filter(str.isdigit, deposit_text))
-                deposit = int(dep_digits) if dep_digits else 0
+                deposit = 0
+                deposit_label = soup.find(string=re.compile("Deposit", re.I))
+                if deposit_label:
+                    deposit_parent = deposit_label.find_parent('div', class_='flex-col')
+                    if deposit_parent:
+                        dep_digits = ''.join(filter(str.isdigit, deposit_parent.text))
+                        deposit = int(dep_digits) if dep_digits else 0
                 
                 # Area Sqft
-                sqft_el = await article.query_selector('#roomArea')
-                sqft_text = await sqft_el.inner_text() if sqft_el else ""
-                sqft_digits = ''.join(filter(str.isdigit, sqft_text))
-                area_sqft = int(sqft_digits) if sqft_digits else 0
+                area_sqft = 0
+                builtup_label = soup.find(string=re.compile("Builtup", re.I))
+                if builtup_label:
+                    builtup_parent = builtup_label.find_parent('div', class_='flex-col')
+                    if builtup_parent:
+                        sqft_digits = ''.join(filter(str.isdigit, builtup_parent.text))
+                        area_sqft = int(sqft_digits) if sqft_digits else 0
                 
-                if rent > 45000:
-                    continue # Skip listings above budget
+                if rent > 45000 or rent == 0:
+                    continue # Skip listings above budget or if rent extraction failed
                 
                 # Locality extraction from title (e.g., "3 BHK In <Locality> For Rent")
                 locality = "Unknown"

@@ -12,7 +12,7 @@ async def read_listings(request: Request):
     conn = sqlite3.connect('rentals.sqlite')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM listings ORDER BY id DESC')
+    cursor.execute('SELECT * FROM listings WHERE commute_time_mins IS NOT NULL AND commute_time_mins <= 60 ORDER BY commute_time_mins ASC')
     listings = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return templates.TemplateResponse("index.html", {"request": request, "listings": listings})
