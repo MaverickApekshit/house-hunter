@@ -34,6 +34,17 @@ export default function Home() {
       });
   }, []);
 
+  const handleReject = async (id: number) => {
+    try {
+      await fetch(`http://localhost:8000/api/listings/${id}/status?status=Rejected`, {
+        method: "POST",
+      });
+      setListings((prev) => prev.filter((item) => item.id !== id));
+    } catch (error) {
+      console.error("Error rejecting listing:", error);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#0f172a] text-slate-200 py-12 px-4 sm:px-6 lg:px-8 font-sans selection:bg-indigo-500 selection:text-white">
       <div className="max-w-6xl mx-auto">
@@ -118,7 +129,10 @@ export default function Home() {
                   >
                     View Details
                   </a>
-                  <button className="flex-1 py-2.5 bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 rounded-lg font-medium border border-slate-700 hover:border-rose-500/30 transition-colors">
+                  <button 
+                    onClick={() => handleReject(listing.id)}
+                    className="flex-1 py-2.5 bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 rounded-lg font-medium border border-slate-700 hover:border-rose-500/30 transition-colors"
+                  >
                     Reject
                   </button>
                 </div>

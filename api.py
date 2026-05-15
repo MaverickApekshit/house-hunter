@@ -18,10 +18,19 @@ async def get_listings():
     conn = sqlite3.connect('rentals.sqlite')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM listings WHERE commute_time_mins IS NOT NULL AND commute_time_mins <= 60 ORDER BY commute_time_mins ASC')
+    cursor.execute('SELECT * FROM listings WHERE commute_time_mins IS NOT NULL AND commute_time_mins <= 60 AND status != "Rejected" ORDER BY commute_time_mins ASC')
     listings = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return listings
+
+@app.post("/api/listings/{listing_id}/status")
+async def update_listing_status(listing_id: int, status: str):
+    conn = sqlite3.connect('rentals.sqlite')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE listings SET status = ? WHERE id = ?', (status, listing_id))
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
 
 if __name__ == "__main__":
     import uvicorn
