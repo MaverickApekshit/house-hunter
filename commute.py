@@ -2,12 +2,9 @@ import os
 import googlemaps
 from datetime import datetime, timedelta
 import database
-from dotenv import load_dotenv
+import config
 
-load_dotenv()
-
-API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
-DESTINATION = "Bagmane Constellation Business Park, Doddanekundi, Bengaluru, Karnataka"
+API_KEY = config.GOOGLE_MAPS_API_KEY
 
 def calculate_commutes():
     if not API_KEY or API_KEY == 'your_api_key_here':
@@ -16,22 +13,40 @@ def calculate_commutes():
 
     gmaps = googlemaps.Client(key=API_KEY)
     
-    # Target arrival time is next Monday at 1:00 PM
+    # Determine destination dynamically (lat/lng tuple if available, fallback to name)
+    destination = config.TARGET_DESTINATION_NAME
+    if config.TARGET_LAT is not None and config.TARGET_LNG is not None:
+        destination = (config.TARGET_LAT, config.TARGET_LNG)
+        print(f"Target destination: Coordinates {destination}")
+    else:
+        print(f"Target destination: Name '{destination}'")
+    
+    # Target arrival time is next Monday at the configured arrival time (default 1:00 PM)
     now = datetime.now()
     days_ahead = 0 - now.weekday()
     if days_ahead <= 0: # Target next week if it's already Monday or later
         days_ahead += 7
     next_monday = now + timedelta(days=days_ahead)
-    target_arrival = next_monday.replace(hour=13, minute=0, second=0, microsecond=0)
+    
+    # Parse target arrival time
+    arrival_hour, arrival_minute = 13, 0
+    if config.TARGET_ARRIVAL_TIME:
+        try:
+            parts = config.TARGET_ARRIVAL_TIME.split(":")
+            arrival_hour = int(parts[0])
+            arrival_minute = int(parts[1])
+        except (ValueError, AttributeError, IndexError):
+            print(f"Failed to parse TARGET_ARRIVAL_TIME '{config.TARGET_ARRIVAL_TIME}'. Falling back to 13:00.")
+            arrival_hour, arrival_minute = 13, 0
+
+    target_arrival = next_monday.replace(hour=arrival_hour, minute=arrival_minute, second=0, microsecond=0)
+    print(f"Target arrival time set to: {target_arrival}")
     
     unprocessed = database.get_unprocessed_commutes()
     print(f"Found {len(unprocessed)} listings needing commute times.")
     
     for listing in unprocessed:
         # If we have lat/lng, use it. Otherwise fallback to locality string.
-        # But NoBroker might not expose lat/lng easily in the basic DOM.
-        # For now, if lat/lng is None, we can try to geocode the locality.
-        
         origin = listing['locality'] + ", Bangalore"
         if listing['latitude'] and listing['longitude']:
             origin = (listing['latitude'], listing['longitude'])
@@ -39,13 +54,12 @@ def calculate_commutes():
         print(f"Calculating commute from {origin}...")
         
         try:
-            # Note: departure_time or arrival_time can be used. Distance Matrix supports arrival_time for transit.
-            # For driving, departure_time is usually preferred but we can just use departure_time = 12:00 PM to simulate 1 PM arrival loosely.
-            target_departure = next_monday.replace(hour=12, minute=0, second=0, microsecond=0)
+            # Simulate departure exactly 1 hour before target arrival time to model typical commute window
+            target_departure = target_arrival - timedelta(hours=1)
             
             result = gmaps.distance_matrix(
                 origins=[origin],
-                destinations=[DESTINATION],
+                destinations=[destination],
                 mode="driving",
                 departure_time=target_departure
             )

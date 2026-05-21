@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import database
 import re
 import os
+import config
 
 async def scrape_nobroker(url):
     print(f"Scraping NoBroker URL: {url}")
@@ -68,7 +69,8 @@ async def scrape_nobroker(url):
                         sqft_digits = ''.join(filter(str.isdigit, builtup_parent.text))
                         area_sqft = int(sqft_digits) if sqft_digits else 0
                 
-                if rent > 45000 or rent == 0:
+                # Enforce rent constraint dynamically from config
+                if rent > config.MAX_RENT or rent == 0:
                     continue # Skip listings above budget or if rent extraction failed
                 
                 # Locality extraction from title (e.g., "3 BHK In <Locality> For Rent")
@@ -87,7 +89,7 @@ async def scrape_nobroker(url):
                     'rent': rent,
                     'deposit': deposit,
                     'area_sqft': area_sqft,
-                    'bhk': '3 BHK', 
+                    'bhk': config.TARGET_BHK, 
                     'furnishing': 'Unknown',
                     'locality': locality,
                     'url': full_url,
@@ -109,6 +111,7 @@ async def scrape_nobroker(url):
 if __name__ == "__main__":
     database.init_db()
     
-    START_URL = "https://www.nobroker.in/property/rent/bangalore/Bangalore/?searchParam=W3sibGF0IjoxMi45NzE1OTg3LCJsb24iOjc3LjU5NDU2MjcsInBsYWNlSWQiOiJDaElKYlU2MHlYQVZyanNSNEdYQkVRZGdUM1EiLCJwbGFjZU5hbWUiOiJCYW5nYWxvcmUifV0=&radius=2.0&type=BHK3,BHK4,BHK4PLUS&propertyAge=0&rent=0,45000"
+    # Construct Start URL dynamically using dynamic configuration value for MAX_RENT
+    START_URL = f"https://www.nobroker.in/property/rent/bangalore/Bangalore/?searchParam=W3sibGF0IjoxMi45NzE1OTg3LCJsb24iOjc3LjU5NDU2MjcsInBsYWNlSWQiOiJDaElKYlU2MHlYQVZyanNSNEdYQkVRZGdUM1EiLCJwbGFjZU5hbWUiOiJCYW5nYWxvcmUifV0=&radius=2.0&type=BHK3,BHK4,BHK4PLUS&propertyAge=0&rent=0,{config.MAX_RENT}"
     
     asyncio.run(scrape_nobroker(START_URL))

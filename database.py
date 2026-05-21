@@ -1,7 +1,8 @@
 import sqlite3
 import os
+import config
 
-DB_PATH = 'rentals.sqlite'
+DB_PATH = config.DATABASE_PATH
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
