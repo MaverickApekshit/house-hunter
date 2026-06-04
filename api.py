@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status as status_codes, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
@@ -53,6 +53,14 @@ class PropertyResponse(BaseModel):
     deposit: int
     area_sqft: Optional[int] = None
 
+
+class VerifyPasswordRequest(BaseModel):
+    """
+    Payload for validating master password mutations.
+    """
+    password: str
+
+
 # ==========================================
 # External Clients Initialization
 # ==========================================
@@ -75,6 +83,21 @@ else:
 # ==========================================
 # API Endpoints
 # ==========================================
+@app.post("/api/auth/verify")
+async def verify_password(payload: VerifyPasswordRequest):
+    """
+    Verifies the provided master password against the system environment.
+    """
+    logger.info("Received POST /api/auth/verify request")
+    if payload.password == config.MASTER_PASSWORD:
+        return {"valid": True}
+    else:
+        raise HTTPException(
+            status_code=status_codes.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect master password."
+        )
+
+
 @app.get("/api/listings", response_model=List[PropertyResponse])
 async def get_listings():
     """
@@ -90,7 +113,7 @@ async def get_listings():
         if not supabase_client:
             logger.error("Supabase client is not initialized in production.")
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=status_codes.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Database client is uninitialized."
             )
         try:
@@ -129,7 +152,7 @@ async def get_listings():
         except Exception as e:
             logger.error(f"Error querying properties from Supabase: {e}", exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch cloud properties: {e}"
             )
 
@@ -176,18 +199,32 @@ async def get_listings():
         except Exception as e:
             logger.error(f"Error querying SQLite database: {e}", exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch local properties: {e}"
             )
 
 
 @app.post("/api/listings/{listing_id}/status")
-async def update_listing_status(listing_id: int, status: str):
+async def update_listing_status(
+    listing_id: int,
+    status: str,
+    x_master_password: Optional[str] = Header(None, alias="X-Master-Password"),
+    password: Optional[str] = None
+):
     """
     Updates the selection status (e.g. 'Rejected', 'Interested') of a specific property listing.
     Routes execution to SQLite or Supabase based on environment.
     """
     logger.info(f"Received POST /api/listings/{listing_id}/status?status={status} request (Environment: {config.ENVIRONMENT})")
+    
+    # Authenticate via Header or Query parameter
+    incoming_pw = x_master_password or password
+    if incoming_pw != config.MASTER_PASSWORD:
+        logger.warning(f"Unauthorized status mutation attempt on listing {listing_id} (Environment: {config.ENVIRONMENT})")
+        raise HTTPException(
+            status_code=status_codes.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: Incorrect or missing master password."
+        )
     
     # ------------------------------------------
     # Production Mode: Supabase Cloud Update
@@ -196,7 +233,7 @@ async def update_listing_status(listing_id: int, status: str):
         if not supabase_client:
             logger.error("Supabase client is not initialized in production.")
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=status_codes.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Database client is uninitialized."
             )
         try:
@@ -209,7 +246,7 @@ async def update_listing_status(listing_id: int, status: str):
             if not response.data:
                 logger.warning(f"Property with ID {listing_id} not found in Supabase properties table.")
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
+                    status_code=status_codes.HTTP_404_NOT_FOUND,
                     detail=f"Property with ID {listing_id} not found in Cloud database."
                 )
                 
@@ -221,7 +258,7 @@ async def update_listing_status(listing_id: int, status: str):
         except Exception as e:
             logger.error(f"Error updating property status in Supabase: {e}", exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update cloud property status: {e}"
             )
 
@@ -240,7 +277,7 @@ async def update_listing_status(listing_id: int, status: str):
                 conn.close()
                 logger.warning(f"Listing with ID {listing_id} not found in SQLite database.")
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
+                    status_code=status_codes.HTTP_404_NOT_FOUND,
                     detail=f"Listing with ID {listing_id} not found in Local database."
                 )
                 
@@ -256,7 +293,7 @@ async def update_listing_status(listing_id: int, status: str):
         except Exception as e:
             logger.error(f"Error updating SQLite listing status: {e}", exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update local property status: {e}"
             )
 

@@ -21,6 +21,9 @@ DATABASE_PATH: str = os.getenv("DATABASE_PATH", "rentals.sqlite")
 # Deployment environment (e.g., 'local' or 'production')
 ENVIRONMENT: str = os.getenv("ENVIRONMENT", "local")
 
+# Master password protecting state mutations
+MASTER_PASSWORD: str = os.getenv("MASTER_PASSWORD", "admin")
+
 # ==========================================
 # Scraping & Filtering Constraints
 # ==========================================
