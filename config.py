@@ -24,6 +24,21 @@ ENVIRONMENT: str = os.getenv("ENVIRONMENT", "local")
 # Master password protecting state mutations
 MASTER_PASSWORD: str = os.getenv("MASTER_PASSWORD", "admin")
 
+# Comma-separated list of allowed CORS origins
+_allowed_origins_raw: str = os.getenv("ALLOWED_ORIGINS", "")
+if ENVIRONMENT == "production":
+    ALLOWED_ORIGINS: list[str] = [
+        origin.strip() for origin in _allowed_origins_raw.split(",") if origin.strip()
+    ]
+else:
+    # Local developer fallback: default to wildcard if not explicitly configured
+    if _allowed_origins_raw:
+        ALLOWED_ORIGINS = [
+            origin.strip() for origin in _allowed_origins_raw.split(",") if origin.strip()
+        ]
+    else:
+        ALLOWED_ORIGINS = ["*"]
+
 # ==========================================
 # Scraping & Filtering Constraints
 # ==========================================
