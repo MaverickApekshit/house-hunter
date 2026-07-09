@@ -62,17 +62,45 @@ def sync_to_cloud():
         # Upsert when we reach batch_size or at the end of the records
         if len(batch_data) >= batch_size or idx == len(rows) - 1:
             try:
-                logger.info(f"Upserting batch of {len(batch_data)} records...")
-                # Execute the upsert via the PostgREST library pattern using 'url' constraint
-                response = supabase.table("properties").upsert(batch_data, on_conflict="url").execute()
-                
-                # Check response logic based on PostgREST return structure
-                success_tally += len(response.data) if hasattr(response, 'data') and response.data else len(batch_data)
-                
+                # De-duplicate this batch by url (the cloud conflict key) so a single
+                # upsert call can never try to affect the same row twice.
+                by_url = {rec["url"]: rec for rec in batch_data if rec.get("url")}
+                urls = list(by_url.keys())
+
+                # Find which of these urls already exist in the cloud. Existing rows
+                # carry cloud-managed state (dashboard triage `status`, original
+                # `created_at`) that must NOT be overwritten by the local scrape.
+                existing_urls = set()
+                if urls:
+                    existing = supabase.table("properties").select("url").in_("url", urls).execute()
+                    existing_urls = {r["url"] for r in (existing.data or [])}
+
+                # New rows insert with their full payload (status='New', created_at
+                # from the scrape). Existing rows update only scraped fields; status
+                # and created_at are stripped so cloud-side triage and the original
+                # creation timestamp survive every re-sync.
+                new_records = [rec for url, rec in by_url.items() if url not in existing_urls]
+                update_records = [
+                    {k: v for k, v in rec.items() if k not in ("status", "created_at")}
+                    for url, rec in by_url.items() if url in existing_urls
+                ]
+
+                logger.info(
+                    f"Batch of {len(by_url)}: inserting {len(new_records)} new, "
+                    f"updating {len(update_records)} existing (status/created_at preserved)..."
+                )
+
+                if new_records:
+                    response = supabase.table("properties").upsert(new_records, on_conflict="url").execute()
+                    success_tally += len(response.data) if hasattr(response, 'data') and response.data else len(new_records)
+                if update_records:
+                    response = supabase.table("properties").upsert(update_records, on_conflict="url").execute()
+                    success_tally += len(response.data) if hasattr(response, 'data') and response.data else len(update_records)
+
                 logger.info(f"Batch upsert successful. Total synced so far: {success_tally}")
             except Exception as e:
                 logger.error(f"Error during batch upsert: {e}")
-            
+
             # Reset batch array
             batch_data = []
 
