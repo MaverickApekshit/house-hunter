@@ -11,3 +11,6 @@ rentals.sqlite
 # OS specific
 .DS_Store
 Thumbs.db
+
+# Local-only docs (status, backlog, project context)
+docs/
