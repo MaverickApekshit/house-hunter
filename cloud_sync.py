@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import sys
 import time
 from supabase import create_client, Client
 import config
@@ -25,7 +26,11 @@ def sync_to_cloud():
         logger.error(f"Failed to initialize Supabase client: {e}")
         return
 
+    # Fail loudly if the key cannot actually write (the audit's silent RLS block).
+    assert_write_capability(supabase)
+
     logger.info(f"Connecting to local SQLite database at: {config.DATABASE_PATH}")
+    conn = None  # bind first so the except/finally path is safe if connect() itself raises
     try:
         conn = sqlite3.connect(config.DATABASE_PATH)
         conn.row_factory = sqlite3.Row
@@ -56,7 +61,10 @@ def sync_to_cloud():
             "commute_duration_mins": row["commute_time_mins"],
             "status": row["status"],
             "created_at": row["added_at"],
-            "last_seen": row["last_seen"]  # scrape data, not cloud-managed: flows on inserts AND updates
+            "last_seen": row["last_seen"],  # scrape data, not cloud-managed: flows on inserts AND updates
+            "deposit": row["deposit"],
+            "area_sqft": row["area_sqft"],
+            "source": row["source"]
         }
         batch_data.append(mapped_record)
 
@@ -108,6 +116,36 @@ def sync_to_cloud():
     logger.info(f"Sync complete. Successfully processed and upserted {success_tally} records.")
     
     conn.close()
+
+def assert_write_capability(supabase):
+    """Probe that the configured key can actually WRITE to public.properties.
+
+    RLS on the table has no INSERT policy and its UPDATE policy is
+    `authenticated`-only, so an anon key's writes are silently dropped (0 rows,
+    no error). This turns that silent block into a loud, non-zero exit naming the
+    service_role requirement. Uses a synthetic probe row that is always removed.
+    """
+    probe = {"url": "https://test.invalid/_write_probe", "title": "_write_probe", "status": "New"}
+    wrote = False
+    try:
+        resp = supabase.table("properties").upsert(probe, on_conflict="url").execute()
+        wrote = bool(getattr(resp, "data", None))
+    except Exception as e:
+        logger.error(f"Write-capability probe raised: {e}")
+    finally:
+        try:
+            supabase.table("properties").delete().eq("url", probe["url"]).execute()
+        except Exception:
+            pass
+    if not wrote:
+        logger.error(
+            "Supabase write check FAILED — no rows written. SUPABASE_KEY must be the "
+            "service_role key: RLS on public.properties has no INSERT policy, so the "
+            "anon key silently blocks every sync write."
+        )
+        sys.exit(1)
+    logger.info("Supabase write-capability check passed.")
+
 
 def finally_close(conn):
     if conn:

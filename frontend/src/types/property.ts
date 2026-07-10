@@ -15,6 +15,6 @@ export interface Property {
   status: 'New' | 'Pending' | 'Interested' | 'Contacted' | 'Rejected';
   created_at: string;             // Date and time listing was tracked
   source: string;                 // Source scraper/mode origin
-  deposit: number;                // Calculated security deposit
+  deposit?: number;               // Calculated security deposit (nullable — e.g. quarantined outliers)
   area_sqft?: number;             // Optional total area size in square feet
 }

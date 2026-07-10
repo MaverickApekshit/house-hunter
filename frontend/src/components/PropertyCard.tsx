@@ -111,7 +111,7 @@ export default function PropertyCard({ property, onStatusChange, index }: Proper
           </div>
           <div className="bg-slate-950/40 rounded-2xl p-3.5 border border-slate-800/60">
             <p className="text-3xs text-slate-500 uppercase font-bold tracking-wider mb-1">Deposit</p>
-            <p className="text-base font-bold text-slate-300">₹{property.deposit.toLocaleString()}</p>
+            <p className="text-base font-bold text-slate-300">{property.deposit != null ? `₹${property.deposit.toLocaleString()}` : "N/A"}</p>
           </div>
           <div className="bg-slate-950/40 rounded-2xl p-3.5 border border-slate-800/60">
             <p className="text-3xs text-slate-500 uppercase font-bold tracking-wider mb-1">Area Size</p>

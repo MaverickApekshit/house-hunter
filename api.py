@@ -50,8 +50,8 @@ class PropertyResponse(BaseModel):
     commute_duration_mins: Optional[int] = None
     status: str
     created_at: str
-    source: str
-    deposit: int
+    source: Optional[str] = None
+    deposit: Optional[int] = None
     area_sqft: Optional[int] = None
 
 
@@ -100,10 +100,12 @@ async def verify_password(payload: VerifyPasswordRequest):
 
 
 @app.get("/api/listings", response_model=List[PropertyResponse])
-async def get_listings():
+async def get_listings(include_rejected: bool = False):
     """
     Retrieves filtered list of property options within acceptable commute times.
     Dynamically routes query based on current environment settings.
+    `include_rejected=true` also returns Rejected rows (default excludes them);
+    the derived-staleness filter on 'New' rows applies regardless.
     """
     logger.info(f"Received GET /api/listings request (Environment: {config.ENVIRONMENT})")
     
@@ -125,13 +127,13 @@ async def get_listings():
             # OR last_seen is unknown. No status is ever written.
             stale_cutoff = (datetime.now(timezone.utc) - timedelta(days=config.DELIST_AFTER_DAYS)).isoformat()
             # Query properties from Supabase using PostgREST filter constraints
-            response = supabase_client.table("properties") \
+            query = supabase_client.table("properties") \
                 .select("*") \
                 .lte("commute_duration_mins", config.MAX_COMMUTE_DURATION_MINS) \
-                .neq("status", "Rejected") \
-                .or_(f"status.neq.New,last_seen.gte.{stale_cutoff},last_seen.is.null") \
-                .order("commute_duration_mins", desc=False) \
-                .execute()
+                .or_(f"status.neq.New,last_seen.gte.{stale_cutoff},last_seen.is.null")
+            if not include_rejected:
+                query = query.neq("status", "Rejected")
+            response = query.order("commute_duration_mins", desc=False).execute()
 
             properties = []
             for record in response.data:
@@ -148,9 +150,9 @@ async def get_listings():
                     commute_duration_mins=record.get("commute_duration_mins"),
                     status=record["status"],
                     created_at=record["created_at"],
-                    source=record.get("source", "Cloud"),
-                    deposit=record.get("deposit", 0), # Fallback to prevent UI crash on .toLocaleString()
-                    area_sqft=record.get("area_sqft")  # Optional fallback
+                    source=record.get("source"),
+                    deposit=record.get("deposit"),
+                    area_sqft=record.get("area_sqft")
                 ))
             
             logger.info(f"Successfully retrieved and normalized {len(properties)} listings from Supabase.")
@@ -177,10 +179,11 @@ async def get_listings():
             # whose last_seen is older than DELIST_AFTER_DAYS. Triaged rows and
             # rows with unknown last_seen are always kept. No status is written.
             stale_cutoff = (datetime.now(timezone.utc) - timedelta(days=config.DELIST_AFTER_DAYS)).strftime('%Y-%m-%d %H:%M:%S')
+            rejected_clause = "" if include_rejected else 'AND status != "Rejected" '
             cursor.execute(
                 'SELECT * FROM listings '
                 'WHERE commute_time_mins IS NOT NULL AND commute_time_mins <= ? '
-                'AND status != "Rejected" '
+                + rejected_clause +
                 "AND NOT (status = 'New' AND last_seen IS NOT NULL AND last_seen < ?) "
                 'ORDER BY commute_time_mins ASC',
                 (config.MAX_COMMUTE_DURATION_MINS, stale_cutoff)
@@ -203,8 +206,8 @@ async def get_listings():
                     commute_duration_mins=row["commute_time_mins"], # Map local commute_time_mins to standardized commute_duration_mins
                     status=row["status"],
                     created_at=str(row["added_at"]), # Map added_at to standardized created_at
-                    source=row["source"] if row["source"] else "Local",
-                    deposit=row["deposit"] if row["deposit"] is not None else 0,
+                    source=row["source"],
+                    deposit=row["deposit"],
                     area_sqft=row["area_sqft"]
                 ))
             
@@ -219,12 +222,14 @@ async def get_listings():
             )
 
 
+ALLOWED_STATUSES = {"New", "Interested", "Contacted", "Rejected"}
+
+
 @app.post("/api/listings/{listing_id}/status")
 async def update_listing_status(
     listing_id: int,
     status: str,
     x_master_password: Optional[str] = Header(None, alias="X-Master-Password"),
-    password: Optional[str] = None
 ):
     """
     Updates the selection status (e.g. 'Rejected', 'Interested') of a specific property listing.
@@ -232,15 +237,22 @@ async def update_listing_status(
     """
     logger.info(f"Received POST /api/listings/{listing_id}/status?status={status} request (Environment: {config.ENVIRONMENT})")
     
-    # Authenticate via Header or Query parameter
-    incoming_pw = x_master_password or password
-    if incoming_pw != config.MASTER_PASSWORD:
+    # Authenticate via the X-Master-Password header ONLY. The old query-param
+    # fallback leaked the secret into access logs and is removed.
+    if x_master_password != config.MASTER_PASSWORD:
         logger.warning(f"Unauthorized status mutation attempt on listing {listing_id} (Environment: {config.ENVIRONMENT})")
         raise HTTPException(
             status_code=status_codes.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized: Incorrect or missing master password."
         )
-    
+
+    # Reject any status outside the known set (no free-text writes).
+    if status not in ALLOWED_STATUSES:
+        raise HTTPException(
+            status_code=status_codes.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{status}'. Allowed: {sorted(ALLOWED_STATUSES)}"
+        )
+
     # ------------------------------------------
     # Production Mode: Supabase Cloud Update
     # ------------------------------------------

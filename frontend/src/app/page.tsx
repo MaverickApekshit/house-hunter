@@ -41,7 +41,9 @@ export default function Home() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/listings`);
+      const res = await fetch(
+        `${API_BASE_URL}/api/listings${showRejected ? "?include_rejected=true" : ""}`
+      );
       if (!res.ok) {
         throw new Error(`Failed to load listings: server returned status ${res.status}`);
       }
@@ -60,9 +62,12 @@ export default function Home() {
     }
   };
 
+  // Re-fetch when the "Show Rejected" toggle changes so the server includes or
+  // excludes Rejected rows (the client-side status pills filter the rest).
   useEffect(() => {
     fetchListings();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRejected]);
 
   // 2. Perform Status State Mutation with password headers
   const updateStatus = async (id: number, newStatus: Property["status"], verifiedPassword: string) => {
