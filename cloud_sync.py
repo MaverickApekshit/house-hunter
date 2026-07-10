@@ -26,6 +26,7 @@ def sync_to_cloud():
         return
 
     logger.info(f"Connecting to local SQLite database at: {config.DATABASE_PATH}")
+    conn = None  # bind first so the except/finally path is safe if connect() itself raises
     try:
         conn = sqlite3.connect(config.DATABASE_PATH)
         conn.row_factory = sqlite3.Row
