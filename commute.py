@@ -6,6 +6,12 @@ import config
 
 API_KEY = config.GOOGLE_MAPS_API_KEY
 
+# A Bengaluru intra-city commute cannot plausibly exceed this many km. A result
+# larger than this means the locality geocoded to the wrong city (parser/geocode
+# failure, e.g. a title carrying a foreign place-name like "…Ranchi…"). Such
+# rows are quarantined via null + log, never stored or served.
+OUTLIER_DISTANCE_KM = 100
+
 def calculate_commutes():
     if not API_KEY or API_KEY == 'your_api_key_here':
         print("Please set your GOOGLE_MAPS_API_KEY in .env file")
@@ -46,11 +52,18 @@ def calculate_commutes():
     print(f"Found {len(unprocessed)} listings needing commute times.")
     
     for listing in unprocessed:
+        # No usable origin: parser returned a null locality and there are no
+        # coordinates. Nothing to route; a null commute is hidden downstream.
+        has_coords = listing['latitude'] and listing['longitude']
+        if not has_coords and not (listing['locality'] and str(listing['locality']).strip()):
+            print(f"Skipping {listing['id']}: no usable locality/coords; leaving commute NULL")
+            continue
+
         # If we have lat/lng, use it. Otherwise fallback to locality string.
-        origin = listing['locality'] + ", Bangalore"
-        if listing['latitude'] and listing['longitude']:
+        origin = str(listing['locality']).strip() + ", Bangalore"
+        if has_coords:
             origin = (listing['latitude'], listing['longitude'])
-            
+
         print(f"Calculating commute from {origin}...")
         
         try:
@@ -73,7 +86,14 @@ def calculate_commutes():
                 
                 # Distance is in meters, convert to km
                 distance_km = element['distance']['value'] / 1000.0
-                
+
+                # Outlier guard: quarantine geocode/parser failures rather than
+                # storing or serving an absurd commute (see OUTLIER_DISTANCE_KM).
+                if distance_km > OUTLIER_DISTANCE_KM:
+                    print(f"OUTLIER {listing['id']}: {origin} -> {distance_km:.1f} km "
+                          f"(> {OUTLIER_DISTANCE_KM} km); leaving commute NULL")
+                    continue
+
                 database.update_commute(listing['id'], commute_mins, distance_km)
                 print(f"Updated {listing['id']}: {commute_mins} mins, {distance_km} km")
             else:
