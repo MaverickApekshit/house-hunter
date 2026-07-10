@@ -5,6 +5,7 @@ import database
 import re
 import os
 import config
+from locality import parse_locality
 
 async def scrape_nobroker(url):
     print(f"Scraping NoBroker URL: {url}")
@@ -73,14 +74,11 @@ async def scrape_nobroker(url):
                 if rent > config.MAX_RENT or rent == 0:
                     continue # Skip listings above budget or if rent extraction failed
                 
-                # Locality extraction from title (e.g., "3 BHK In <Locality> For Rent")
-                locality = "Unknown"
-                if " In " in title:
-                    parts = title.split(" In ", 1)
-                    if " For " in parts[1]:
-                        locality = parts[1].split(" For ")[0].strip()
-                    else:
-                        locality = parts[1].strip()
+                # Robust locality extraction from the title (see locality.py).
+                # Returns None when no locality is confidently extractable; the
+                # row is stored with a NULL locality and skipped by commute.py
+                # rather than emitting a junk locality that mis-geocodes.
+                locality = parse_locality(title)
                 
                 data = {
                     'source': 'NoBroker',
