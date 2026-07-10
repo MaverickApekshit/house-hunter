@@ -57,7 +57,10 @@ def sync_to_cloud():
             "commute_duration_mins": row["commute_time_mins"],
             "status": row["status"],
             "created_at": row["added_at"],
-            "last_seen": row["last_seen"]  # scrape data, not cloud-managed: flows on inserts AND updates
+            "last_seen": row["last_seen"],  # scrape data, not cloud-managed: flows on inserts AND updates
+            "deposit": row["deposit"],
+            "area_sqft": row["area_sqft"],
+            "source": row["source"]
         }
         batch_data.append(mapped_record)
 

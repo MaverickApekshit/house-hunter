@@ -50,8 +50,8 @@ class PropertyResponse(BaseModel):
     commute_duration_mins: Optional[int] = None
     status: str
     created_at: str
-    source: str
-    deposit: int
+    source: Optional[str] = None
+    deposit: Optional[int] = None
     area_sqft: Optional[int] = None
 
 
@@ -148,9 +148,9 @@ async def get_listings():
                     commute_duration_mins=record.get("commute_duration_mins"),
                     status=record["status"],
                     created_at=record["created_at"],
-                    source=record.get("source", "Cloud"),
-                    deposit=record.get("deposit", 0), # Fallback to prevent UI crash on .toLocaleString()
-                    area_sqft=record.get("area_sqft")  # Optional fallback
+                    source=record.get("source"),
+                    deposit=record.get("deposit"),
+                    area_sqft=record.get("area_sqft")
                 ))
             
             logger.info(f"Successfully retrieved and normalized {len(properties)} listings from Supabase.")
@@ -203,8 +203,8 @@ async def get_listings():
                     commute_duration_mins=row["commute_time_mins"], # Map local commute_time_mins to standardized commute_duration_mins
                     status=row["status"],
                     created_at=str(row["added_at"]), # Map added_at to standardized created_at
-                    source=row["source"] if row["source"] else "Local",
-                    deposit=row["deposit"] if row["deposit"] is not None else 0,
+                    source=row["source"],
+                    deposit=row["deposit"],
                     area_sqft=row["area_sqft"]
                 ))
             
