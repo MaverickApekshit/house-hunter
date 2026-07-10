@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import sqlite3
 import logging
+from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 import config
 
@@ -118,11 +119,17 @@ async def get_listings():
             )
         try:
             logger.info("Querying Supabase properties table...")
+            # Derived-staleness delisting: hide rows that are still 'New' and
+            # whose last_seen is older than DELIST_AFTER_DAYS. Keep a row if it
+            # is NOT 'New' (triaged rows are always shown), OR last_seen is fresh,
+            # OR last_seen is unknown. No status is ever written.
+            stale_cutoff = (datetime.now(timezone.utc) - timedelta(days=config.DELIST_AFTER_DAYS)).isoformat()
             # Query properties from Supabase using PostgREST filter constraints
             response = supabase_client.table("properties") \
                 .select("*") \
                 .lte("commute_duration_mins", config.MAX_COMMUTE_DURATION_MINS) \
                 .neq("status", "Rejected") \
+                .or_(f"status.neq.New,last_seen.gte.{stale_cutoff},last_seen.is.null") \
                 .order("commute_duration_mins", desc=False) \
                 .execute()
 
@@ -166,9 +173,17 @@ async def get_listings():
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
+            # Derived-staleness delisting: hide rows that are still 'New' and
+            # whose last_seen is older than DELIST_AFTER_DAYS. Triaged rows and
+            # rows with unknown last_seen are always kept. No status is written.
+            stale_cutoff = (datetime.now(timezone.utc) - timedelta(days=config.DELIST_AFTER_DAYS)).strftime('%Y-%m-%d %H:%M:%S')
             cursor.execute(
-                'SELECT * FROM listings WHERE commute_time_mins IS NOT NULL AND commute_time_mins <= ? AND status != "Rejected" ORDER BY commute_time_mins ASC',
-                (config.MAX_COMMUTE_DURATION_MINS,)
+                'SELECT * FROM listings '
+                'WHERE commute_time_mins IS NOT NULL AND commute_time_mins <= ? '
+                'AND status != "Rejected" '
+                "AND NOT (status = 'New' AND last_seen IS NOT NULL AND last_seen < ?) "
+                'ORDER BY commute_time_mins ASC',
+                (config.MAX_COMMUTE_DURATION_MINS, stale_cutoff)
             )
             rows = cursor.fetchall()
             conn.close()
