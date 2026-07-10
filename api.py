@@ -219,12 +219,14 @@ async def get_listings():
             )
 
 
+ALLOWED_STATUSES = {"New", "Interested", "Contacted", "Rejected"}
+
+
 @app.post("/api/listings/{listing_id}/status")
 async def update_listing_status(
     listing_id: int,
     status: str,
     x_master_password: Optional[str] = Header(None, alias="X-Master-Password"),
-    password: Optional[str] = None
 ):
     """
     Updates the selection status (e.g. 'Rejected', 'Interested') of a specific property listing.
@@ -232,15 +234,22 @@ async def update_listing_status(
     """
     logger.info(f"Received POST /api/listings/{listing_id}/status?status={status} request (Environment: {config.ENVIRONMENT})")
     
-    # Authenticate via Header or Query parameter
-    incoming_pw = x_master_password or password
-    if incoming_pw != config.MASTER_PASSWORD:
+    # Authenticate via the X-Master-Password header ONLY. The old query-param
+    # fallback leaked the secret into access logs and is removed.
+    if x_master_password != config.MASTER_PASSWORD:
         logger.warning(f"Unauthorized status mutation attempt on listing {listing_id} (Environment: {config.ENVIRONMENT})")
         raise HTTPException(
             status_code=status_codes.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized: Incorrect or missing master password."
         )
-    
+
+    # Reject any status outside the known set (no free-text writes).
+    if status not in ALLOWED_STATUSES:
+        raise HTTPException(
+            status_code=status_codes.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{status}'. Allowed: {sorted(ALLOWED_STATUSES)}"
+        )
+
     # ------------------------------------------
     # Production Mode: Supabase Cloud Update
     # ------------------------------------------
