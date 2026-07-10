@@ -13,7 +13,7 @@ async def scrape_nobroker(url):
         page = await browser.new_page()
         
         # Navigate and wait for content to load
-        await page.goto(url, wait_until='networkidle')
+        await page.goto(url, wait_until='domcontentloaded', timeout=60000)
         
         # Scroll down multiple times to load dynamic content
         for i in range(10):
