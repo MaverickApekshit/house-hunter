@@ -7,6 +7,31 @@ import os
 import config
 from locality import parse_locality
 
+
+def extract_labeled_int(soup, label_text):
+    """Read a NoBroker overview metric (e.g. 'Deposit', 'Builtup') as an int from
+    ITS OWN value node — the `heading-6` div immediately preceding the `heading-7`
+    label — never the shared `flex-col` container, which holds several metrics and
+    would concatenate their digits (the old bug that produced a ₹25,002,500
+    'deposit' from rent+deposit+area run together). Returns None when the metric
+    is absent or its value node has no digits."""
+    label_div = None
+    for node in soup.find_all(string=re.compile(label_text, re.I)):
+        parent = node.find_parent('div')
+        if parent and 'heading-7' in (parent.get('class') or []):
+            label_div = parent
+            break
+    if label_div is None:  # fall back to the first match's parent div
+        node = soup.find(string=re.compile(label_text, re.I))
+        label_div = node.find_parent('div') if node else None
+    if label_div is None:
+        return None
+    value_div = label_div.find_previous_sibling('div')
+    if value_div is None:
+        return None
+    digits = ''.join(ch for ch in value_div.get_text() if ch.isdigit())
+    return int(digits) if digits else None
+
 async def scrape_nobroker(url):
     print(f"Scraping NoBroker URL: {url}")
     async with async_playwright() as p:
@@ -52,23 +77,11 @@ async def scrape_nobroker(url):
                     rent_digits = ''.join(filter(str.isdigit, price_meta['content']))
                     rent = int(rent_digits) if rent_digits else 0
                 
-                # Deposit
-                deposit = 0
-                deposit_label = soup.find(string=re.compile("Deposit", re.I))
-                if deposit_label:
-                    deposit_parent = deposit_label.find_parent('div', class_='flex-col')
-                    if deposit_parent:
-                        dep_digits = ''.join(filter(str.isdigit, deposit_parent.text))
-                        deposit = int(dep_digits) if dep_digits else 0
-                
-                # Area Sqft
-                area_sqft = 0
-                builtup_label = soup.find(string=re.compile("Builtup", re.I))
-                if builtup_label:
-                    builtup_parent = builtup_label.find_parent('div', class_='flex-col')
-                    if builtup_parent:
-                        sqft_digits = ''.join(filter(str.isdigit, builtup_parent.text))
-                        area_sqft = int(sqft_digits) if sqft_digits else 0
+                # Deposit and built-up area: read each from its own value node
+                # (see extract_labeled_int) so sibling metrics are never
+                # concatenated. None when absent -> stored NULL.
+                deposit = extract_labeled_int(soup, "Deposit")
+                area_sqft = extract_labeled_int(soup, "Builtup")
                 
                 # Enforce rent constraint dynamically from config
                 if rent > config.MAX_RENT or rent == 0:
