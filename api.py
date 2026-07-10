@@ -100,10 +100,12 @@ async def verify_password(payload: VerifyPasswordRequest):
 
 
 @app.get("/api/listings", response_model=List[PropertyResponse])
-async def get_listings():
+async def get_listings(include_rejected: bool = False):
     """
     Retrieves filtered list of property options within acceptable commute times.
     Dynamically routes query based on current environment settings.
+    `include_rejected=true` also returns Rejected rows (default excludes them);
+    the derived-staleness filter on 'New' rows applies regardless.
     """
     logger.info(f"Received GET /api/listings request (Environment: {config.ENVIRONMENT})")
     
@@ -125,13 +127,13 @@ async def get_listings():
             # OR last_seen is unknown. No status is ever written.
             stale_cutoff = (datetime.now(timezone.utc) - timedelta(days=config.DELIST_AFTER_DAYS)).isoformat()
             # Query properties from Supabase using PostgREST filter constraints
-            response = supabase_client.table("properties") \
+            query = supabase_client.table("properties") \
                 .select("*") \
                 .lte("commute_duration_mins", config.MAX_COMMUTE_DURATION_MINS) \
-                .neq("status", "Rejected") \
-                .or_(f"status.neq.New,last_seen.gte.{stale_cutoff},last_seen.is.null") \
-                .order("commute_duration_mins", desc=False) \
-                .execute()
+                .or_(f"status.neq.New,last_seen.gte.{stale_cutoff},last_seen.is.null")
+            if not include_rejected:
+                query = query.neq("status", "Rejected")
+            response = query.order("commute_duration_mins", desc=False).execute()
 
             properties = []
             for record in response.data:
@@ -177,10 +179,11 @@ async def get_listings():
             # whose last_seen is older than DELIST_AFTER_DAYS. Triaged rows and
             # rows with unknown last_seen are always kept. No status is written.
             stale_cutoff = (datetime.now(timezone.utc) - timedelta(days=config.DELIST_AFTER_DAYS)).strftime('%Y-%m-%d %H:%M:%S')
+            rejected_clause = "" if include_rejected else 'AND status != "Rejected" '
             cursor.execute(
                 'SELECT * FROM listings '
                 'WHERE commute_time_mins IS NOT NULL AND commute_time_mins <= ? '
-                'AND status != "Rejected" '
+                + rejected_clause +
                 "AND NOT (status = 'New' AND last_seen IS NOT NULL AND last_seen < ?) "
                 'ORDER BY commute_time_mins ASC',
                 (config.MAX_COMMUTE_DURATION_MINS, stale_cutoff)
