@@ -55,7 +55,8 @@ def sync_to_cloud():
             "longitude": row["longitude"],
             "commute_duration_mins": row["commute_time_mins"],
             "status": row["status"],
-            "created_at": row["added_at"]
+            "created_at": row["added_at"],
+            "last_seen": row["last_seen"]  # scrape data, not cloud-managed: flows on inserts AND updates
         }
         batch_data.append(mapped_record)
 

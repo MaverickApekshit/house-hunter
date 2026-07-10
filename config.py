@@ -80,6 +80,12 @@ TARGET_ARRIVAL_TIME: str = os.getenv("TARGET_ARRIVAL_TIME", "13:00")
 # Maximum acceptable one-way transit commute duration in minutes
 MAX_COMMUTE_DURATION_MINS: int = int(os.getenv("MAX_COMMUTE_DURATION_MINS", "60"))
 
+# Days after which a still-'New' listing not re-seen in a scrape is treated as
+# delisted and hidden by the API. Derived staleness via last_seen — never a
+# status write (status is cloud-managed and stripped on sync). Triaged rows
+# (Interested/Contacted/etc.) are always returned regardless of staleness.
+DELIST_AFTER_DAYS: int = int(os.getenv("DELIST_AFTER_DAYS", "14"))
+
 # ==========================================
 # External Integrations
 # ==========================================
