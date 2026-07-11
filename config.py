@@ -87,6 +87,21 @@ MAX_COMMUTE_DURATION_MINS: int = int(os.getenv("MAX_COMMUTE_DURATION_MINS", "60"
 DELIST_AFTER_DAYS: int = int(os.getenv("DELIST_AFTER_DAYS", "14"))
 
 # ==========================================
+# Fit Score (read-time ranking; never stored)
+# ==========================================
+# Owner priorities: lower rent 45% · shorter commute 35% · bigger flat 20%.
+# Weights are relative and normalized at compute time if they don't sum to 100.
+SCORE_W_RENT: int = int(os.getenv("SCORE_W_RENT", "45"))
+SCORE_W_COMMUTE: int = int(os.getenv("SCORE_W_COMMUTE", "35"))
+SCORE_W_SIZE: int = int(os.getenv("SCORE_W_SIZE", "20"))
+# Anchors: 100 at the ideal end, 0 at the budget/limit end (values clamp 0-100).
+SCORE_RENT_MIN: int = int(os.getenv("SCORE_RENT_MIN", "25000"))     # rent <= this -> 100
+SCORE_RENT_MAX: int = int(os.getenv("SCORE_RENT_MAX", "45000"))     # rent >= this -> 0
+SCORE_COMMUTE_MAX: int = int(os.getenv("SCORE_COMMUTE_MAX", "60"))  # commute 0 -> 100, >= this -> 0
+SCORE_SQFT_MIN: int = int(os.getenv("SCORE_SQFT_MIN", "1100"))      # sqft <= this -> 0
+SCORE_SQFT_MAX: int = int(os.getenv("SCORE_SQFT_MAX", "1900"))      # sqft >= this -> 100
+
+# ==========================================
 # External Integrations
 # ==========================================
 # Google Maps Platform API key (for Distance Matrix calculations)
