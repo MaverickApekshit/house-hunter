@@ -17,4 +17,5 @@ export interface Property {
   source: string;                 // Source scraper/mode origin
   deposit?: number;               // Calculated security deposit (nullable — e.g. quarantined outliers)
   area_sqft?: number;             // Optional total area size in square feet
+  fit_score: number;              // Weighted fit score 0–100 (rent/commute/size); default ranking
 }

@@ -52,7 +52,7 @@ export default function FilterBar({
     setMaxCommute(60);
     setSelectedStatus(["Pending", "Interested", "Contacted"]);
     setShowRejected(false);
-    setSortBy("commute_asc");
+    setSortBy("fit_desc");
   };
 
   return (
@@ -84,6 +84,7 @@ export default function FilterBar({
             onChange={(e) => setSortBy(e.target.value)}
             className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-300 transition-all focus:border-indigo-500 focus:outline-none"
           >
+            <option value="fit_desc">Best Fit</option>
             <option value="commute_asc">Commute: Shortest</option>
             <option value="price_asc">Rent: Low to High</option>
             <option value="price_desc">Rent: High to Low</option>

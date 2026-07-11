@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 import config
+import scoring
 
 # Set up logging for API telemetry
 logging.basicConfig(
@@ -53,6 +54,7 @@ class PropertyResponse(BaseModel):
     source: Optional[str] = None
     deposit: Optional[int] = None
     area_sqft: Optional[int] = None
+    fit_score: int = 0
 
 
 class VerifyPasswordRequest(BaseModel):
@@ -152,9 +154,12 @@ async def get_listings(include_rejected: bool = False):
                     created_at=record["created_at"],
                     source=record.get("source"),
                     deposit=record.get("deposit"),
-                    area_sqft=record.get("area_sqft")
+                    area_sqft=record.get("area_sqft"),
+                    fit_score=scoring.fit_score(record["price"], record.get("commute_duration_mins"), record.get("area_sqft"))
                 ))
-            
+
+            # Default ranking: best fit first, lower price breaks ties.
+            properties.sort(key=lambda p: (-p.fit_score, p.price))
             logger.info(f"Successfully retrieved and normalized {len(properties)} listings from Supabase.")
             return properties
 
@@ -208,9 +213,12 @@ async def get_listings(include_rejected: bool = False):
                     created_at=str(row["added_at"]), # Map added_at to standardized created_at
                     source=row["source"],
                     deposit=row["deposit"],
-                    area_sqft=row["area_sqft"]
+                    area_sqft=row["area_sqft"],
+                    fit_score=scoring.fit_score(row["rent"], row["commute_time_mins"], row["area_sqft"])
                 ))
-            
+
+            # Default ranking: best fit first, lower price breaks ties.
+            properties.sort(key=lambda p: (-p.fit_score, p.price))
             logger.info(f"Successfully retrieved and normalized {len(properties)} listings from SQLite.")
             return properties
 
