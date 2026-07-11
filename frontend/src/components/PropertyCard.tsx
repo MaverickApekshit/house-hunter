@@ -68,6 +68,9 @@ export default function PropertyCard({ property, onStatusChange, index }: Proper
             <span className="inline-flex items-center px-3 py-1 rounded-full text-3xs font-bold uppercase tracking-wider bg-slate-950 text-indigo-400 border border-slate-800/80">
               {property.bhk}
             </span>
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-3xs font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+              Fit {property.fit_score}
+            </span>
           </div>
           <span className={`inline-flex items-center px-3 py-1 rounded-full text-3xs font-bold uppercase tracking-wider border ${getStatusBadgeStyle(property.status)}`}>
             {property.status}

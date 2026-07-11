@@ -27,7 +27,7 @@ export default function Home() {
     "Contacted",
   ]);
   const [showRejected, setShowRejected] = useState(false);
-  const [sortBy, setSortBy] = useState("commute_asc");
+  const [sortBy, setSortBy] = useState("fit_desc");
 
   // Authentication & Security modal states
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -150,6 +150,7 @@ export default function Home() {
       return matchesSearch && matchesPrice && matchesCommute && matchesStatus;
     })
     .sort((a, b) => {
+      if (sortBy === "fit_desc") return (b.fit_score - a.fit_score) || (a.price - b.price);
       if (sortBy === "price_asc") return a.price - b.price;
       if (sortBy === "price_desc") return b.price - a.price;
       if (sortBy === "commute_asc") {
