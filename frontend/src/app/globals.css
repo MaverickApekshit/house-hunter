@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* Restore the intended micro-badge/label scale. These utilities were referenced
+   throughout the UI but never defined, so they fell back to ~16px and blew out
+   the card badge row (audit D2/D3). Sizes only — no restyle. */
+@utility text-3xs {
+  font-size: 0.625rem;   /* 10px */
+  line-height: 0.875rem; /* 14px */
+}
+@utility text-2xs {
+  font-size: 0.6875rem;  /* 11px */
+  line-height: 1rem;     /* 16px */
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -20,7 +32,10 @@
 }
 
 body {
-  background: var(--background);
+  /* Match the app's existing dark surface (slate-950) so any area outside the
+     shell never flashes the light-scheme white (audit D1). This is not a theme
+     decision — the light/dark token direction is deferred to the redesign. */
+  background: #020617;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }

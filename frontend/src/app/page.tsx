@@ -6,6 +6,7 @@ import MetricsBar from "../components/MetricsBar";
 import FilterBar from "../components/FilterBar";
 import PropertyCard from "../components/PropertyCard";
 import PasswordModal from "../components/PasswordModal";
+import { listingTime } from "@/lib/dates.mjs";
 
 // Load API URL dynamically from Next.js environment configurations
 const API_BASE_URL =
@@ -159,16 +160,19 @@ export default function Home() {
         );
       }
       if (sortBy === "created_desc") {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return listingTime(b.created_at) - listingTime(a.created_at);
       }
       return 0;
     });
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white pb-24">
-      {/* Decorative Glow Elements */}
-      <div className="absolute top-0 left-1/4 h-[500px] w-[500px] rounded-full bg-indigo-900/10 blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/3 right-1/4 h-[400px] w-[400px] rounded-full bg-purple-900/10 blur-[100px] pointer-events-none" />
+    <main className="relative overflow-x-hidden min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white pb-24">
+      {/* Decorative Glow Elements — contained in a clipping layer so they can
+          never widen the page beyond the viewport (audit D1). */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute top-0 left-1/4 h-[500px] w-[500px] rounded-full bg-indigo-900/10 blur-[120px]" />
+        <div className="absolute top-1/3 right-1/4 h-[400px] w-[400px] rounded-full bg-purple-900/10 blur-[100px]" />
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 relative z-10">
         {/* Premium Header */}
