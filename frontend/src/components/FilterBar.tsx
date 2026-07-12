@@ -107,8 +107,10 @@ export default function FilterBar({
         </div>
       </div>
 
-      {/* Advanced Filter Expandable Section */}
+      {/* Advanced Filter Expandable Section — inert when collapsed so its
+          invisible controls are unfocusable and unclickable (audit D4). */}
       <div
+        inert={!showAdvanced}
         className={`grid grid-cols-1 gap-6 md:grid-cols-3 pt-6 mt-6 border-t border-slate-800/80 transition-all duration-300 ${
           showAdvanced ? "opacity-100 max-h-[800px]" : "opacity-0 max-h-0 overflow-hidden pt-0 mt-0 border-t-0"
         }`}
